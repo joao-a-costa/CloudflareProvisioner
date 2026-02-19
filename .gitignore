@@ -1,0 +1,7 @@
+appsettings.json
+appsettings.Development.json
+/.vs
+/CloudflareProvisioner.Lib/obj
+/CloudflareProvisioner.Lib/bin
+/CloudflareProvisioner.Test/obj
+/CloudflareProvisioner.Test/bin
