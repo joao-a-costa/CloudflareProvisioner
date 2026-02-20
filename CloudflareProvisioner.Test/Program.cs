@@ -17,6 +17,7 @@ internal class Program
         var _accountId = cloudflareSection["AccountId"] ?? string.Empty;
         var _zoneId = cloudflareSection["ZoneId"] ?? string.Empty;
         var _domain = cloudflareSection["Domain"] ?? string.Empty;
+        var _serviceTokenId = cloudflareSection["ServiceTokenId"] ?? string.Empty;
         var _defaultServiceAddress = cloudflareSection["DefaultServiceAddress"] ?? "http://localhost:5581";
 
         var api = new CloudflareApiService(_apiToken, _accountId, _zoneId, _domain);
@@ -36,7 +37,7 @@ internal class Program
                     serviceAddress = _defaultServiceAddress;
 
                 Console.WriteLine($"Provisioning with service address: {serviceAddress}, please wait...");
-                var provisionResult = await api.ProvisionClientAsync(serial, serviceAddress);
+                var provisionResult = await api.ProvisionClientAsync(serial, serviceAddress, _serviceTokenId);
                 Console.WriteLine("Provisioning completed.");
                 Console.WriteLine($"Provisioning Result: Serial={provisionResult.Serial}, Hostname={provisionResult.Hostname}, TunnelId={provisionResult.TunnelId}");
             }

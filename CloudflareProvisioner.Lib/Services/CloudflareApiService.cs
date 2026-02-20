@@ -7,6 +7,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Threading.Tasks;
+using Newtonsoft.Json.Linq;
 
 namespace CloudflareProvisioner.Lib.Services
 {
@@ -453,6 +454,91 @@ namespace CloudflareProvisioner.Lib.Services
             return result;
         }
 
+        /// <summary>
+        /// Asynchronously creates a new Access Application in Cloudflare Access with the specified application name, domain, and session duration.
+        /// </summary>
+        /// <param name="appName">The name of the Access Application to be created. This value is used to identify the application within Cloudflare Access and should be unique within the account.</param>
+        /// <param name="domain">The domain associated with the Access Application. This should match the hostname used in the tunnel configuration to ensure proper routing and access control.</param>
+        /// <param name="sessionDuration">The duration for which a user's session will remain active after authentication. This value should be specified in a format recognized by Cloudflare Access, such as "24h" for 24 hours. The default value is "24h".</param>
+        /// <returns>The response content from the Cloudflare API, which may include details about the created Access Application. You may want to parse this response to extract specific information such as the application ID.</returns>
+        /// <exception cref="Exception">Thrown if the request to create the Access Application fails, indicating the status code and response content for debugging purposes.</exception>
+        public async Task<string> CreateAccessApplicationAsync(string appName, string domain)
+        {
+            var request = new CloudflareAccessApplicationRequest
+            {
+                name = appName,
+                domain = domain
+            };
+            var json = JsonConvert.SerializeObject(request);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var url = $"{_baseApiUrl}accounts/{_accountId}/access/apps";
+            var response = await _httpClient.PostAsync(url, content);
+            var responseContent = await response.Content.ReadAsStringAsync();
+            if (!response.IsSuccessStatusCode)
+                throw new Exception($"Failed to create Access Application: {responseContent}");
+            // You may want to parse and return the application ID from the response
+            return responseContent;
+        }
+
+        /// <summary>
+        /// Creates a new access policy for the specified application asynchronously.
+        /// </summary>
+        /// <remarks>The method sends a request to the Cloudflare API to create an access policy using a
+        /// predefined service token. The returned JSON string contains details about the created policy. Ensure that
+        /// the application ID is valid and that the caller has appropriate permissions to create policies.</remarks>
+        /// <param name="appId">The unique identifier of the application for which the access policy is to be created. Cannot be null or
+        /// empty.</param>
+        /// <returns>A JSON string containing the response from the Cloudflare API after creating the access policy.</returns>
+        /// <exception cref="Exception">Thrown if the access policy creation fails or the Cloudflare API returns an unsuccessful status code.</exception>
+        public async Task<string> CreateAccessPolicyAsync(string appId, string serviceTokenId)
+        {
+            // Build the request to match the provided JSON structure for a Service Token Policy
+            var request = new CloudflareAccessPolicyRequest
+            {
+                include = new object[]
+                {
+                    new {
+                        service_token = new {
+                            token_id = serviceTokenId
+                        }
+                    }
+                }
+            };
+            var json = JsonConvert.SerializeObject(request);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var url = $"{_baseApiUrl}accounts/{_accountId}/access/apps/{appId}/policies";
+            var response = await _httpClient.PostAsync(url, content);
+            var responseContent = await response.Content.ReadAsStringAsync();
+            if (!response.IsSuccessStatusCode)
+                throw new Exception($"Failed to create Access Policy: {responseContent}");
+            return responseContent;
+        }
+
+        /// <summary>
+        /// Retrieves the access application details for the specified application identifier asynchronously.
+        /// </summary>
+        /// <param name="appId">The unique identifier of the access application to retrieve. Cannot be null or empty.</param>
+        /// <returns>A string containing the access application details in the response body. The format of the string depends on
+        /// the API response.</returns>
+        /// <exception cref="Exception">Thrown if the request to retrieve the access application fails or returns a non-success status code.</exception>
+        public async Task<string> GetAccessApplicationAsync(string appId)
+        {
+            var url = $"{_baseApiUrl}accounts/{_accountId}/access/apps/{appId}";
+            var now = DateTime.Now.ToString(_dateFormat);
+            Console.WriteLine($"[{now}] [HTTP] GET {url}");
+            var response = await _httpClient.GetAsync(url);
+            now = DateTime.Now.ToString(_dateFormat);
+            Console.WriteLine($"[{now}] [HTTP] Response Status: {response.StatusCode}");
+            var responseContent = await response.Content.ReadAsStringAsync();
+            now = DateTime.Now.ToString(_dateFormat);
+            Console.WriteLine($"[{now}] [HTTP] Response Body: {responseContent}");
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new Exception($"Failed to get Access Application: {responseContent}");
+            }
+            return responseContent;
+        }
+
         //public async Task<string> GetTunnelConfigAsync(string tunnelId)
         //{
         //    var response = await _httpClient.GetAsync(
@@ -469,24 +555,39 @@ namespace CloudflareProvisioner.Lib.Services
         //    return responseContent; // Optionally deserialize to a model
         //}
 
-        /// <summary>
-        /// Provisions a new client by creating a secure tunnel, generating a tunnel token, configuring DNS records, and
-        /// installing the required cloudflared service.
-        /// </summary>
-        /// <remarks>This method performs multiple asynchronous operations to fully set up the client,
-        /// including tunnel creation, DNS configuration, and service installation. Ensure that the provided serial is
-        /// valid and that the necessary permissions are in place for tunnel and DNS operations. The method is intended
-        /// for scenarios where automated provisioning and configuration of secure tunnels are required.</remarks>
-        /// <param name="serial">The unique serial identifier for the client to be provisioned. This value is used to generate the tunnel
-        /// name and associated hostname. Cannot be null or empty.</param>
-        /// <returns>A ProvisioningStatus object containing details about the provisioned client, including the serial, hostname,
-        /// tunnel ID, tunnel token, DNS record result, tunnel configuration, creation timestamp, and active status.</returns>
-        public async Task<ProvisioningStatus> ProvisionClientAsync(string serial)
-        {
-            return await ProvisionClientAsync(serial, "http://localhost:5581");
-        }
+        ///// <summary>
+        ///// Provisions a new client by creating a secure tunnel, generating a tunnel token, configuring DNS records, and
+        ///// installing the required cloudflared service.
+        ///// </summary>
+        ///// <remarks>This method performs multiple asynchronous operations to fully set up the client,
+        ///// including tunnel creation, DNS configuration, and service installation. Ensure that the provided serial is
+        ///// valid and that the necessary permissions are in place for tunnel and DNS operations. The method is intended
+        ///// for scenarios where automated provisioning and configuration of secure tunnels are required.</remarks>
+        ///// <param name="serial">The unique serial identifier for the client to be provisioned. This value is used to generate the tunnel
+        ///// name and associated hostname. Cannot be null or empty.</param>
+        ///// <returns>A ProvisioningStatus object containing details about the provisioned client, including the serial, hostname,
+        ///// tunnel ID, tunnel token, DNS record result, tunnel configuration, creation timestamp, and active status.</returns>
+        //public async Task<ProvisioningStatus> ProvisionClientAsync(string serial)
+        //{
+        //    return await ProvisionClientAsync(serial, "http://localhost:5581");
+        //}
 
-        public async Task<ProvisioningStatus> ProvisionClientAsync(string serial, string serviceAddress)
+        /// <summary>
+        /// Provisions a client by creating a secure tunnel, DNS record, and access application for the specified device
+        /// serial and service address.
+        /// </summary>
+        /// <remarks>This method performs multiple asynchronous operations to set up secure access for a
+        /// client device, including tunnel creation, DNS configuration, and access policy setup. The returned
+        /// ProvisioningStatus provides all relevant identifiers and configuration details for the provisioned client.
+        /// The method is not thread-safe; concurrent calls with the same serial may result in conflicts.</remarks>
+        /// <param name="serial">The unique serial number of the client device to provision. Used to generate tunnel and hostname
+        /// identifiers.</param>
+        /// <param name="serviceAddress">The network address of the service to expose through the tunnel. Must be a valid address accessible by the
+        /// provisioning system.</param>
+        /// <returns>A ProvisioningStatus object containing details about the created tunnel, DNS record, access application, and
+        /// provisioning state.</returns>
+        public async Task<ProvisioningStatus> ProvisionClientAsync(string serial, string serviceAddress,
+            string serviceTokenId)
         {
             var tunnelName = $"{serial}";
             var hostname = $"{serial}.{_domain}";
@@ -531,6 +632,15 @@ namespace CloudflareProvisioner.Lib.Services
             );
             Console.WriteLine("[Cloudflare] Tunnel config updated.");
 
+            Console.WriteLine("[Cloudflare] Creating Access Application...");
+            var accessApplication = await CreateAccessApplicationAsync(tunnelName, hostname);
+            Console.WriteLine("[Cloudflare] Access Application created.");
+
+            Console.WriteLine("[Cloudflare] Creating Access Policy...");
+            var appId = JObject.Parse(accessApplication)["result"]["id"].ToString();
+            var accessPolicy = await CreateAccessPolicyAsync(appId, serviceTokenId);
+            Console.WriteLine("[Cloudflare] Access Policy created.");
+
             Console.WriteLine("[Cloudflare] Installing cloudflared service...");
             InstallCloudflaredService(tunnel.Id, tunnelToken);
             Console.WriteLine("[Cloudflare] cloudflared service installed.");
@@ -543,6 +653,8 @@ namespace CloudflareProvisioner.Lib.Services
                 TunnelToken = tunnelToken,
                 DnsRecord = dnsRecordResult,
                 TunnelConfig = tunnelConfig.Result,
+                AccessApplication = accessApplication,
+                AccessPolicy = accessPolicy,
                 CreatedAt = DateTime.UtcNow,
                 IsActive = true
             };

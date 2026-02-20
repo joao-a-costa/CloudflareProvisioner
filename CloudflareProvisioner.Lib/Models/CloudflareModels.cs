@@ -124,6 +124,8 @@ namespace CloudflareProvisioner.Lib.Models
         public string Hostname { get; set; }
         public string TunnelId { get; set; }
         public string TunnelToken { get; set; }
+        public string AccessApplication { get; set; }
+        public string AccessPolicy { get; set; }
         public DateTime CreatedAt { get; set; }
         public bool IsActive { get; set; }
         public DnsRecordResult DnsRecord { get; set; }
